@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.conf import settings
 from equipment.models import OwnedGear
@@ -65,8 +66,12 @@ class Setup(models.Model):
 
     # Visibility
     is_public = models.BooleanField(default=False)
-    is_favorite = models.BooleanField(default=False)
-
+    is_favorite = models.BooleanField(default=False) # owner's favorite
+    saved_by = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, 
+        related_name="saved_setups", 
+        blank=True
+    )
     # Stats
     views = models.IntegerField(default=0)
     likes = models.ManyToManyField(
@@ -76,9 +81,28 @@ class Setup(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    # Domain Model pattern
+    def clean(self) -> None:
+        """
+        Check data before saving
+        """
+        if self.song and self.band:
+            if self.song.band != self.band:
+                raise ValidationError(
+                    {"band": f"incorrect band. Should be '{self.song.band}'"}
+                )
+        if self.band and self.genre:
+            if self.band.genre != self.genre:
+                raise ValidationError(
+                    {"genre": f"incorrect genre. Should be '{self.band.genre}'"}
+                )
+        if self.song and self.genre:
+            if self.song.genre != self.genre:
+                raise ValidationError(
+                    {"genre": f"Incorrect genre. Should be '{self.song.genre}'"}
+                )
+
+    """Domain Model pattern - auto-tagging logic"""
     def save(self, *args, **kwargs):
-        """Domain Model pattern - auto-tagging logic"""
         # Auto-tag from song → band → genre
         if self.song:
             self.band = self.song.band
